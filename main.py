@@ -12,7 +12,6 @@ import collections
 from geopy import distance
 import socket
 
-#TODO sort out bank and heading index values and check vertical motion is as expected - Done
 
 def ex():
     print("Setting up simulation")
@@ -36,8 +35,6 @@ def ex():
         state = 'xp' #or 'sharpy'
         while True:  # main loop
             count += 1
-            #print("Count:"+str(count))
-            #time.sleep(0.001)
             try:
                 if pe.controls[5] == 0:
                     if state =='xp':
@@ -61,10 +58,9 @@ def ex():
 
             except socket.timeout:
                 print("Missed an update")
-                #sleep(10)
-                #break  # if user pressed a key other than the given key the loop will break
-            if count > 10000:
+                sleep(10)
                 break
+                
         finish_t = time.time()
         print("Elapsed time")
         print(finish_t - start_t)
@@ -115,15 +111,11 @@ class PhysicsEngine:
     def get_position(self):
         self.position = list(self.client.getPOSI())
 
-        #print(self.position)
-
-
     def get_controls(self):
         #Gets control positions from x-Plane and saves them in a buffer (buffer not implemented)
         # 0 - Elevator
         # 1 - Ailerons...
         self.controls = self.client.getCTRL()
-        #print(self.controls)
         self.control_buffer.append((time.time(),self.controls))
         print("Elevator State:"+str(self.controls[0]))
 
@@ -138,21 +130,17 @@ class PhysicsEngine:
         #Create a time array,t and input array u
         t = np.arange(self.control_buffer[-2][0],self.control_buffer[-1][0],self.dt)
         u = self.elev_angle_f(np.linspace(self.control_buffer[-2][1][0],self.control_buffer[-1][1][0],len(t)))
-        #print("Simulating with "+str(len(u))+" timesteps")
-        #print(f"Inputs: {u}")
-        #print(f"Initial State: {self.x}")
+   
         #Run the state space sim
         tout ,yout, xout = signal.dlsim((self.a,self.b,self.c,self.d,self.dt),u,x0 =self.x)
         self.x = xout[-1] #Stores the current state for the next time.
-        #print(f"Yout: {yout}")
+        
         #integrate the yout
         pitch = integrate.cumtrapz(np.array(yout)[:,4],dx = self.dt,initial=0) + np.deg2rad(self.position[3]) #Integrate the pitch rate for pitch change
-
+        
+        # Get the vertical and horizontal velocity at every timestep
         U_e = np.multiply(np.cos(pitch),28-np.array(yout)[:,0])-np.multiply(np.sin(pitch),np.array(yout)[:,2])
         V_e = np.multiply(np.sin(pitch),28-np.array(yout)[:,0])+np.multiply(np.cos(pitch),np.array(yout)[:,2])
-
-        #U_e_vel = integrate.cumtrapz(dU_e,dx = self.dt,initial=0) + self.velocity[0]
-        #V_e_vel = integrate.cumtrapz(dV_e,dx = self.dt,initial=0) + self.velocity[2]
 
         self.velocity[0] = U_e[-1]
         self.velocity[2] = V_e[-1]
